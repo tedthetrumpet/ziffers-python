@@ -2,6 +2,7 @@
 from dataclasses import dataclass, field, replace
 from itertools import product
 from math import floor
+import random
 from types import LambdaType
 from copy import deepcopy
 import operator
@@ -123,6 +124,8 @@ def resolve_item(item: Meta, options: dict):
         update_modifications(item, options)
     elif isinstance(item, Measure):
         item.reset_options(options)
+    elif options["degrees"] is True and isinstance(item, Pitch) and item.pitch_class is 0:
+        yield Rest(text="r", kwargs=options)
     elif isinstance(item, Meta):  # Filters whitespace
         yield update_item(item, options)
 
@@ -207,6 +210,7 @@ def create_pitch(current: Item, options: dict) -> Pitch:
         intervals=merged_options["scale"],
         modifier=c_modifier,
         octave=c_octave,
+        degrees=merged_options["degrees"]
     )
     new_pitch = Pitch(
         pitch_class=current_value,
@@ -381,7 +385,7 @@ class ListOperation(Sequence):
                     else:
                         flattened_list.append(_filter_operation(item, options))
                 elif isinstance(item, Cyclic):
-                    value = item.get_value()
+                    value = item.get_value(options)
                     if isinstance(value, Sequence):
                         flattened_list.extend(_filter_operation(value, options))
                     elif isinstance(value, (Event, RandomInteger, Integer)):
@@ -402,6 +406,47 @@ class ListOperation(Sequence):
                 return replace(input_list, values=flattened_list)
 
             return flattened_list
+
+        def _pick_from_list(left, right, options):
+            """Pick random numbers from a list"""
+            if isinstance(left, Sequence):
+                left = _filter_operation(left, options)
+            
+            if isinstance(right, Sequence):
+                right = _filter_operation(right, options)
+            
+            if not isinstance(right, (list, Sequence)):
+                right = Sequence(values=[right])
+            
+            result = []
+
+            for num in right.values:
+                for _ in range(num.get_value(options)):
+                    result.append(random.choice(left.values))
+            return flatten(result)
+        
+
+        def _select_from_list(left, right, options):
+            """Select number of items from shuffled list"""
+            if isinstance(left, Sequence):
+                left = _filter_operation(left, options)
+            
+            if isinstance(right, Sequence):
+                right = _filter_operation(right, options)
+            
+            if not isinstance(right, (list, Sequence)):
+                right = Sequence(values=[right])
+            
+            result = []
+            left = left.values
+
+            for num in right.values:
+                random.shuffle(left)
+                num = num.get_value(options)
+                new_list = [left[i % len(left)] for i in range(num)]
+                result += new_list
+                
+            return flatten(result)
 
         def _vertical_arpeggio(left, right, options):
             """Vertical arpeggio operation, eg. (135)@(q 1 2 021)"""
@@ -537,8 +582,13 @@ class ListOperation(Sequence):
                     left = _vertical_arpeggio(left, right, options)
                 elif operation == "horizontal":
                     left = _horizontal_arpeggio(left, right, options)
-                if operation == "zip":
+                elif operation == "zip":
                     left = _cyclic_zip(left, right, options)
+                elif operation == "pick":
+                    left = _pick_from_list(left, right, options)
+                elif operation == "select":
+                    left = _select_from_list(left, right, options)
+                
             else:
                 left = _python_operations(left, right, options)
         return left

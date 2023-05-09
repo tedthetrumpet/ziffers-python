@@ -47,7 +47,8 @@ DEFAULT_OPTIONS = MappingProxyType({
         "duration": 0.25, 
         "key": "C4", 
         "scale": "IONIAN",
-        "measure": 0
+        "measure": 0,
+        "degrees": False
     })
 
 OPERATORS = MappingProxyType({
@@ -62,7 +63,9 @@ OPERATORS = MappingProxyType({
     ">>": operator.irshift,
     "@": "vertical",
     "#": "horizontal",
-    "<>": "zip"
+    "<>": "zip",
+    "?": "pick",
+    "~": "select"
 })
 
 
